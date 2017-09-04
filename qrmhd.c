@@ -8,8 +8,7 @@
 #include <libgen.h>
 
 #include "cfg_system.h"
-#include "qboost_common.h"
-
+#include "qrmhd.h"
 
 // ----------------------------------------------------------------------------
 // Debug 
@@ -85,7 +84,7 @@ void daemonize()
 		exit(0);
 	}
 	// child run
-	QBOOST_START_REOPEN_STD_012;
+	QRMH_START_REOPEN_STD_012;
 	chdir("/");
 	umask(0);
 }
@@ -202,7 +201,7 @@ static int service_main(void)
 // ----------------------------------------------------------------------------
 int main(int argc, char *argv[])
 {
-	setenv("QNAP_QPKG", "Qboost", 1);
+	setenv("QNAP_QPKG", "ResourceMonitor", 1);
 	parse_opt(argc, argv);
 	service_main();
 
@@ -214,7 +213,7 @@ int main(int argc, char *argv[])
 		fclose(debug_fp);
 		debug_fp=NULL;
 	}
-	QBOOST_END_REOPEN_STD_012;
+	QRMH_END_REOPEN_STD_012;
 	return 0;
 }
 
