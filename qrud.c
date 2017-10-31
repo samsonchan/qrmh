@@ -8,7 +8,7 @@
 #include <libgen.h>
 
 #include "cfg_system.h"
-#include "qrmhd.h"
+#include "qrud.h"
 
 // ----------------------------------------------------------------------------
 // Debug 
@@ -17,8 +17,8 @@ static int debug_lvl = 0;
 static int daemonize_background = 0;
 static FILE *debug_fp = NULL;
 
-#define QRMH_LOG_E(format, args...) do { if(debug_lvl > 0) { fprintf((debug_fp)?debug_fp:stderr, "%s(%d)" format, __func__, __LINE__, ##args); if(debug_fp) fflush(debug_fp); } } while(0)
-#define QRMH_LOG_D(format, args...) do { if(debug_lvl > 1) { fprintf((debug_fp)?debug_fp:stdout, format, ##args); if(debug_fp) fflush(debug_fp); } } while(0)
+#define QRU_LOG_E(format, args...) do { if(debug_lvl > 0) { fprintf((debug_fp)?debug_fp:stderr, "%s(%d)" format, __func__, __LINE__, ##args); if(debug_fp) fflush(debug_fp); } } while(0)
+#define QRU_LOG_D(format, args...) do { if(debug_lvl > 1) { fprintf((debug_fp)?debug_fp:stdout, format, ##args); if(debug_fp) fflush(debug_fp); } } while(0)
 
 #define REAL_TIME_INTERVAL	5
 #define DAY_INTERVAL		300
@@ -84,7 +84,7 @@ void daemonize()
 		exit(0);
 	}
 	// child run
-	QRMH_START_REOPEN_STD_012;
+	QRU_START_REOPEN_STD_012;
 	chdir("/");
 	umask(0);
 }
@@ -141,15 +141,15 @@ static int check_process()
 {
 	int	ret=-1;
 #ifdef O_CLOEXEC
-	lock_fd=open("/var/run/qrmhd.pid", O_CREAT | O_CLOEXEC | O_RDWR, 0600);
+	lock_fd=open("/var/run/qrud.pid", O_CREAT | O_CLOEXEC | O_RDWR, 0600);
 #else
-	lock_fd=open("/var/run/qrmhd.pid", O_CREAT | O_RDWR, 0600);
+	lock_fd=open("/var/run/qrud.pid", O_CREAT | O_RDWR, 0600);
 #endif
 	if(lock_fd < 0){
 		goto myreturn;
 	}else{
 		if(lockf(lock_fd, F_TLOCK, 0)){
-			perror("qrmhd is already running");
+			perror("qrud is already running");
 			goto myreturn;
 		}
 #ifndef O_CLOEXEC
@@ -201,7 +201,7 @@ static int service_main(void)
 // ----------------------------------------------------------------------------
 int main(int argc, char *argv[])
 {
-	setenv("QNAP_QPKG", "ResourceMonitor", 1);
+	setenv("QNAP_QPKG", "Qboost", 1);
 	parse_opt(argc, argv);
 	service_main();
 
@@ -213,7 +213,7 @@ int main(int argc, char *argv[])
 		fclose(debug_fp);
 		debug_fp=NULL;
 	}
-	QRMH_END_REOPEN_STD_012;
+	QRU_END_REOPEN_STD_012;
 	return 0;
 }
 
