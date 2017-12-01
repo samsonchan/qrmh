@@ -10,62 +10,130 @@
 #include "cfg_system.h"
 #include "qrud.h"
 
-// ----------------------------------------------------------------------------
-// Debug 
-// ----------------------------------------------------------------------------
-static int debug_lvl = 0;
-static int daemonize_background = 0;
-static FILE *debug_fp = NULL;
+static int debug_lvl=0;
+static int daemonize_background=0;
+static FILE *debug_fp=NULL;
 
 #define QRU_LOG_E(format, args...) do { if(debug_lvl > 0) { fprintf((debug_fp)?debug_fp:stderr, "%s(%d)" format, __func__, __LINE__, ##args); if(debug_fp) fflush(debug_fp); } } while(0)
 #define QRU_LOG_D(format, args...) do { if(debug_lvl > 1) { fprintf((debug_fp)?debug_fp:stdout, format, ##args); if(debug_fp) fflush(debug_fp); } } while(0)
 
-#define REAL_TIME_INTERVAL	5
-#define DAY_INTERVAL		300
-#define WEEK_INTERVAL		1800
-#define MONTH_INTERVAL		7200
-#define YEAR_INTERVAL		86400
+#define DAY_INTERVAL		(300/60)
+#define WEEK_INTERVAL		(1800/60)
+#define MONTH_INTERVAL		(7200/60)
+#define YEAR_INTERVAL		(86400/60)
+#define TIME_DISPARITY		(600/60)
 
 static int lock_fd=-1;
+SYS_RES g_sys_res={};
 
-static int schedule_proc()
+
+#define QRUD_START_REOPEN_STD_012 \
+	do { \
+			int dev = open("/dev/null", 2); \
+			if(dev != -1) \
+			{ \
+				close(0); \
+				dup2(dev, 0); \
+				close(1); \
+				dup2(dev, 1); \
+				close(2); \
+				dup2(dev, 2); \
+				close(dev); \
+			} \
+	} while(0)
+
+static int get_sys_resource()
 {
-	int		ret=-1,
-			i;
-	SYS_RES sys_res={};
+	int		ret=-1;
 
-	if(0 > (ret=Get_System_Resource(&sys_res, SRES_ALL))){
+	if(0 > (ret=Get_System_Resource(&g_sys_res, SRES_ALL))){
 		goto myreturn;
 	}
-	printf("Memory:\n");
-	printf("\tMemory Total[%u]\n", sys_res.mem.mem_total);
-	printf("\tMemory Used[%u]\n", sys_res.mem.mem_used);
-	printf("Swap Memory:\n");
-	printf("\tSwap Memory Total[%u]\n", sys_res.mem.swap_total);
-	printf("\tSwap Memory Used[%u]\n", sys_res.mem.swap_used);
-	printf("CPU:\n");
-	printf("\tCPU Usage[%.1f %%]\n", sys_res.cpu_info[0].real);
-	printf("Process(%d):\n", sys_res.proc_count);
-/*
-	for(i=0; i<sys_res.proc_count; i++){
-		printf("\tIterm(%d) start\n", i);
-		printf("\t\tproc_name[%s]\n", sys_res.proc_info[i].proc_name);
-		printf("\t\tapp_des[%s]\n", sys_res.proc_info[i].proc_des); // qpkg internal name or "sys_proc"
-		printf("\t\tuser[%s]\n", sys_res.proc_info[i].user);
-		printf("\t\tpid[%u]\n", sys_res.proc_info[i].pid);
-		printf("\t\tcpu_us[%.2f]\n", sys_res.proc_info[i].cpu_us);
-		printf("\t\tmem_us[%u]\n", sys_res.proc_info[i].mem_us);
-		printf("\t\tproc_tx[%llu]\n", sys_res.proc_info[i].proc_tx);
-		printf("\t\tproc_rx[%llu]\n", sys_res.proc_info[i].proc_rx);
-		printf("\t\tstate[%c]\n", sys_res.proc_info[i].state);
-		printf("\t\tcpu_exe_time[%llu]\n", sys_res.proc_info[i].exe_time);
-		printf("\tIterm(%d) end\n", i);
-	}
-*/
-	Free_System_Resource(&sys_res);
+
 	ret=0;
 myreturn:
 	return ret;
+}
+
+static int get_nic_resource()
+{
+	int		ret=-1;
+
+
+	ret=0;
+myreturn:
+	return ret;
+}
+
+static int get_pool_resource()
+{
+	int		ret=-1;
+
+
+	ret=0;
+myreturn:
+	return ret;
+}
+
+static int get_global_resource()
+{
+	int	ret=-1;
+	
+	if(0 > get_sys_resource()){
+		goto myreturn;
+	}
+
+
+
+
+
+
+	ret=0;
+myreturn:
+	return ret;
+}
+
+static void cleanup_sys_resource()
+{
+	int	i,
+		effective_cnt=0;
+
+	QRU_LOG_D("Memory:\n");
+	QRU_LOG_D("\tMemory Total[%u]\n", g_sys_res.mem.mem_total);
+	QRU_LOG_D("\tMemory Used[%u]\n", g_sys_res.mem.mem_used);
+	QRU_LOG_D("Swap Memory:\n");
+	QRU_LOG_D("\tSwap Memory Total[%u]\n", g_sys_res.mem.swap_total);
+	QRU_LOG_D("\tSwap Memory Used[%u]\n", g_sys_res.mem.swap_used);
+	QRU_LOG_D("CPU:\n");
+	QRU_LOG_D("\tCPU Usage[%.1f %%]\n", g_sys_res.cpu_info[0].real);
+	QRU_LOG_D("Process(%d):\n", g_sys_res.proc_count);
+
+	for(i=0; i<g_sys_res.proc_count; i++){
+		if(effective_cnt < 500 && g_sys_res.proc_info[i].cpu_us > 0.1){
+			QRU_LOG_D("\tEffective Iterm(%d) start\n", effective_cnt);			
+			QRU_LOG_D("\t\tproc_name[%s]\n", g_sys_res.proc_info[i].proc_name);
+			QRU_LOG_D("\t\tapp_des[%s]\n", g_sys_res.proc_info[i].proc_des); // application internal name or "sys_proc"
+			QRU_LOG_D("\t\tuser[%s]\n", g_sys_res.proc_info[i].user);
+			QRU_LOG_D("\t\tpid[%u]\n", g_sys_res.proc_info[i].pid);
+			QRU_LOG_D("\t\tcpu_us[%.2f]\n", g_sys_res.proc_info[i].cpu_us);
+			QRU_LOG_D("\t\tmem_us[%u]\n", g_sys_res.proc_info[i].mem_us);
+			QRU_LOG_D("\t\tproc_tx[%llu]\n", g_sys_res.proc_info[i].proc_tx);
+			QRU_LOG_D("\t\tproc_rx[%llu]\n", g_sys_res.proc_info[i].proc_rx);
+			QRU_LOG_D("\tEffective Iterm(%d) end\n", effective_cnt);
+			effective_cnt++;
+		}
+	}
+	Free_System_Resource(&g_sys_res);
+	memset(&g_sys_res, 0, sizeof(SYS_RES));
+	return;
+}
+
+static void cleanup_global_resource()
+{
+	cleanup_sys_resource();
+
+
+	return;
 }
 
 void daemonize()
@@ -82,11 +150,14 @@ void daemonize()
 			debug_fp=NULL;
 		}
 		exit(0);
+	}else{
+		// child run
+		setsid();
+		QRUD_START_REOPEN_STD_012;
+		chdir("/");
+		umask(0);
 	}
-	// child run
-	QRU_START_REOPEN_STD_012;
-	chdir("/");
-	umask(0);
+	return;
 }
 
 static void usage(const char *name)
@@ -178,20 +249,62 @@ static int service_main(void)
 	if(0 > check_process()){
 		exit(-1);
 	}
-	printf("Service start\n");
+	QRU_LOG_D("Service start\n");
 
-	uint32_t last=(uint32_t)time(0);
+	int week_cnt=0,
+		month_cnt=0,
+		year_cnt=0;
+	time_t last=time(0);
 	while(1) {
-		sleep(1);
-		uint32_t now = (uint32_t)time(0);
-		if(now == last || (now % REAL_TIME_INTERVAL) != 0) {
-			if((now/REAL_TIME_INTERVAL) == (last/REAL_TIME_INTERVAL)){
-				continue;
-			}
+		time_t 	now=time(0),
+				recode_start=0,
+				recode_end=0,
+				recode_diff=0;
+
+		if(-TIME_DISPARITY > (now-last) || (now-last) > TIME_DISPARITY){
+			QRU_LOG_D("time disparity of %ld minutes detected.([last(%ld)][now(%ld)][diff(%ld)])\n", (now-last) / 60, last, now, (now-last));
+			// we need drop the record that were after now time
+			last=time(0);
+			usleep(500000);
+			continue;
 		}
-		printf("\n!!!!!!Record Start(%d)!!!!!!\n", now);
-		schedule_proc();
-		last = now;
+		if(now == last || (now % DAY_INTERVAL) != 0){
+			usleep(500000);
+			continue;
+		}
+		recode_start=now;		
+		get_global_resource();
+		// write resource data to day table
+		QRU_LOG_D("Record Day[last(%ld)][now(%ld)][diff(%ld)]\n", last, now, (now-last));
+		if(week_cnt == WEEK_INTERVAL / DAY_INTERVAL){
+			// write resource data to week table
+			QRU_LOG_D("Record Week[last(%ld)][now(%ld)][diff(%ld)]\n", last, now, (now-last));
+			week_cnt=0;
+		}
+		if(month_cnt == MONTH_INTERVAL / DAY_INTERVAL){
+			// write resource data to month table
+			QRU_LOG_D("Record Month[last(%ld)][now(%ld)][diff(%ld)]\n", last, now, (now-last));
+			month_cnt=0;	
+		}
+		if(year_cnt == YEAR_INTERVAL / DAY_INTERVAL){
+			// write resource data to year table
+			QRU_LOG_D("Record Year[last(%ld)][now(%ld)][diff(%ld)]\n", last, now, (now-last));
+			year_cnt=0;
+		}		
+		cleanup_global_resource();
+		recode_end=(uint32_t)time(0);
+		recode_diff=recode_end-recode_start;
+
+		if(recode_diff < DAY_INTERVAL){
+			sleep(DAY_INTERVAL-recode_diff-1);
+		}else{
+			QRU_LOG_E("Miss DAY_INTERVAL(%d) [last(%ld)][now(%ld)][diff(%ld)][recode_diff(%ld)]\n", DAY_INTERVAL, last, now, (now-last), recode_diff);
+		}
+
+		last=now;
+		week_cnt++;
+		month_cnt++;
+		year_cnt++;
 	}
     return 0;
 }
@@ -201,7 +314,6 @@ static int service_main(void)
 // ----------------------------------------------------------------------------
 int main(int argc, char *argv[])
 {
-	setenv("QNAP_QPKG", "Qboost", 1);
 	parse_opt(argc, argv);
 	service_main();
 
@@ -213,7 +325,6 @@ int main(int argc, char *argv[])
 		fclose(debug_fp);
 		debug_fp=NULL;
 	}
-	QRU_END_REOPEN_STD_012;
 	return 0;
 }
 
